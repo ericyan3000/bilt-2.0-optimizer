@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bilt 2.0 Global Strategy Lab</title>
+    
+    <!-- SEO and Social Sharing Metadata -->
+    <meta name="description" content="Interactive tool to optimize Bilt Rewards 2.0 points, mortgage routing, and tiered spending efficiency.">
+    <meta property="og:title" content="Bilt 2.0 Strategy Lab">
+    <meta property="og:description" content="Calculate your optimal mortgage routing and spend efficiency under the 2026 Bilt rules.">
+    <meta property="og:type" content="website">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Dependencies for React + Recharts Standalone -->
+    <script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
+    <script src="https://unpkg.com/react-is@18.2.0/umd/react-is.production.min.js"></script>
+    <script src="https://unpkg.com/recharts@2.10.3/umd/Recharts.js"></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
+        body { 
+            font-family: 'Inter', sans-serif; 
+            margin: 0;
+            padding: 0;
+        }
+        input[type="range"] {
+            cursor: pointer;
+        }
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useMemo, Fragment } = React;
+        const { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } = Recharts;
+        
+        // Inline SVG Icons using React Fragments to solve adjacency issues
+        const Icon = ({ name, className = "" }) => {
+            const icons = {
+                trending: <path d="m22 7-8.5 8.5-5-5L2 17M16 7h6v6" />,
+                wallet: <path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1" />,
+                tag: <path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l7.996 7.996a2 2 0 0 0 2.828 0l7.172-7.172a2 2 0 0 0 0-2.828l-7.996-7.996ZM7 10a3 3 0 1 1 0-6 3 3 0 0 1 0 6Z" />,
+                home: <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />,
+                check: <path d="M20 6 9 17l-5-5" />,
+                zap: <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />,
+                shopping: (
+                    <Fragment>
+                        <circle cx="8" cy="21" r="1" />
+                        <circle cx="19" cy="21" r="1" />
+                        <path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12" />
+                    </Fragment>
+                ),
+                utensils: (
+                    <Fragment>
+                        <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2M7 2v11M5 20h4M9 22H7v-2" />
+                        <path d="M15 2v10a2 2 0 0 0 2 2h4M18 20v2M21 2v10a2 2 0 0 1-2 2h-4" />
+                    </Fragment>
+                ),
+                percent: (
+                    <Fragment>
+                        <line x1="19" x2="5" y1="5" y2="19" />
+                        <circle cx="6.5" cy="6.5" r="2.5" />
+                        <circle cx="17.5" cy="17.5" r="2.5" />
+                    </Fragment>
+                )
+            };
+            return (
+                <svg 
+                    xmlns="http://www.w3.org/2000/svg" 
+                    width="24" height="24" 
+                    viewBox="0 0 24 24" 
+                    fill="none" 
+                    stroke="currentColor" 
+                    strokeWidth="2" 
+                    strokeLinecap="round" 
+                    strokeLinejoin="round" 
+                    className={className}
+                >
+                    {icons[name] || null}
+                </svg>
+            );
+        };
+
+        const App = () => {
+            const rivalCardRate = 0.05; 
+            
+            // Editable Mortgage State
+            const [mortgages, setMortgages] = useState([
+                { id: 'A', amount: 1000, label: 'Mortgage 1' },
+                { id: 'B', amount: 2000, label: 'Mortgage 2' },
+                { id: 'C', amount: 3000, label: 'Mortgage 3' },
+                { id: 'D', amount: 4000, label: 'Mortgage 4' }
+            ]);
+
+            const [activePayments, setActivePayments] = useState(['A', 'B', 'C', 'D']);
+            const [grocerySpend, setGrocerySpend] = useState(1000);
+            const [diningSpend, setDiningSpend] = useState(1000);
+            const [variousSpend, setVariousSpend] = useState(1000); 
+            const [cardType, setCardType] = useState('Palladium'); 
+            const [obsidianChoice, setObsidianChoice] = useState('Grocery'); 
+            const [pathway, setPathway] = useState('Tiered');
+            const [userCpp, setUserCpp] = useState(1.7);
+            const [isEditingMortgages, setIsEditingMortgages] = useState(false);
+
+            const effectiveCpp = userCpp / 100;
+            const totalSpend = grocerySpend + diningSpend + variousSpend;
+            
+            const mortgageToBilt = useMemo(() => mortgages
+                .filter(p => activePayments.includes(p.id))
+                .reduce((sum, p) => sum + p.amount, 0), [mortgages, activePayments]);
+
+            const handleMortgageUpdate = (id, field, value) => {
+                setMortgages(prev => prev.map(m => m.id === id ? { ...m, [field]: value } : m));
+            };
+
+            const calculateEverydayPoints = (spend, type, choice) => {
+                if (type === 'Palladium') return spend * 2; 
+                if (type === 'Obsidian') {
+                    const chosenPts = (choice === 'Grocery' ? grocerySpend : diningSpend) * 3;
+                    const otherFoodPts = (choice === 'Grocery' ? diningSpend : grocerySpend) * 1;
+                    const vPts = variousSpend * 1;
+                    return chosenPts + otherFoodPts + vPts;
+                }
+                return spend * 1;
+            };
+
+            const getTierMultiplier = (r) => {
+                if (r >= 100) return 1.25;
+                if (r >= 75) return 1.0;
+                if (r >= 50) return 0.75;
+                if (r >= 25) return 0.5;
+                return 0;
+            };
+
+            const getTierName = (r) => {
+                if (r >= 100) return "Tier 4";
+                if (r >= 75) return "Tier 3";
+                if (r >= 50) return "Tier 2";
+                if (r >= 25) return "Tier 1";
+                return "Tier 0";
+            };
+
+            const marginalData = useMemo(() => {
+                const H = mortgageToBilt || 1;
+                const tiers = [0.25, 0.50, 0.75, 1.0];
+                let pool3x = (cardType === 'Obsidian') ? (obsidianChoice === 'Grocery' ? grocerySpend : diningSpend) : 0;
+                if (cardType === 'Palladium') pool3x = totalSpend;
+
+                let spentSoFar = 0;
+
+                return tiers.map((threshold, index) => {
+                    const start = (index === 0) ? 0 : tiers[index - 1] * H;
+                    const end = threshold * H;
+                    const incrementalSpendNeeded = end - start;
+                    let chunkEverydayPoints = 0;
+                    let remainingToAllocate = incrementalSpendNeeded;
+
+                    if (cardType === 'Palladium') {
+                        chunkEverydayPoints = incrementalSpendNeeded * 2;
+                    } else if (cardType === 'Obsidian') {
+                        const from3x = Math.min(remainingToAllocate, Math.max(0, pool3x - spentSoFar));
+                        chunkEverydayPoints += from3x * 3;
+                        remainingToAllocate -= from3x;
+                        chunkEverydayPoints += remainingToAllocate * 1;
+                    } else {
+                        chunkEverydayPoints = incrementalSpendNeeded * 1;
+                    }
+
+                    spentSoFar += incrementalSpendNeeded;
+                    const housingUnlockMult = (index === 0) ? 0.5 : 0.25;
+                    const yieldPercent = (((chunkEverydayPoints + (H * housingUnlockMult)) * effectiveCpp) / (incrementalSpendNeeded || 1)) * 100;
+
+                    return {
+                        name: `${(start/H*100).toFixed(0)}-${(threshold*100).toFixed(0)}%`,
+                        yield: yieldPercent,
+                    };
+                });
+            }, [mortgageToBilt, cardType, obsidianChoice, grocerySpend, diningSpend, variousSpend, effectiveCpp]);
+
+            const recommendation = useMemo(() => {
+                let bestPoints = -1;
+                let bestCombo = [];
+                for (let i = 0; i < 16; i++) {
+                    const comboIds = [];
+                    let mTotal = 0;
+                    for (let j = 0; j < 4; j++) {
+                        if ((i >> j) & 1) { comboIds.push(mortgages[j].id); mTotal += mortgages[j].amount; }
+                    }
+                    if (mTotal === 0) continue;
+                    const r = (totalSpend / mTotal) * 100;
+                    const mult = getTierMultiplier(r);
+                    const hPoints = mult > 0 ? mTotal * mult : 250;
+                    const tPoints = calculateEverydayPoints(totalSpend, cardType, obsidianChoice) + hPoints;
+                    if (tPoints > bestPoints) { bestPoints = tPoints; bestCombo = comboIds; }
+                }
+                return {
+                    ids: bestCombo,
+                    points: bestPoints,
+                    totalMortgage: mortgages.filter(p => bestCombo.includes(p.id)).reduce((s, p) => s + p.amount, 0)
+                };
+            }, [totalSpend, cardType, obsidianChoice, mortgages]);
+
+            const everydayPoints = calculateEverydayPoints(totalSpend, cardType, obsidianChoice);
+            const currentRatio = (totalSpend / (mortgageToBilt || 1)) * 100;
+            const tierInfo = {
+                name: pathway === 'Tiered' ? getTierName(currentRatio) : "Bilt Cash",
+                multiplier: pathway === 'Tiered' ? getTierMultiplier(currentRatio) : 0
+            };
+
+            let housingPoints = 0;
+            if (pathway === 'Tiered') {
+                housingPoints = tierInfo.multiplier > 0 ? mortgageToBilt * tierInfo.multiplier : 250;
+            } else {
+                const biltCashEarned = totalSpend * 0.04;
+                housingPoints = Math.min(mortgageToBilt, (biltCashEarned / 30) * 1000);
+                tierInfo.multiplier = (housingPoints / (mortgageToBilt || 1)).toFixed(2);
+            }
+
+            const totalPoints = everydayPoints + housingPoints;
+            const currentCardData = {
+                Blue: { fee: 0, credits: 0, title: "Blue" },
+                Obsidian: { fee: 95, credits: 100, title: "Obsidian" },
+                Palladium: { fee: 495, credits: 600, title: "Palladium" }
+            }[cardType];
+
+            const netValue = (totalPoints * effectiveCpp) + (currentCardData.credits / 12) - (currentCardData.fee / 12);
+            const isOptimal = JSON.stringify([...activePayments].sort()) === JSON.stringify([...recommendation.ids].sort());
+
+            return (
+                <div className="min-h-screen bg-slate-50 p-4 md:p-8">
+                    <div className="max-w-6xl mx-auto space-y-6">
+                        
+                        <div className="bg-white rounded-3xl p-6 shadow-xl shadow-slate-200 border border-white flex flex-col lg:flex-row justify-between items-center gap-6">
+                            <div className="flex items-center gap-4 text-left w-full lg:w-auto">
+                                <div className="bg-indigo-600 p-4 rounded-2xl text-white shadow-lg shadow-indigo-100">
+                                    <Icon name="trending" className="w-8 h-8" />
+                                </div>
+                                <div>
+                                    <h1 className="text-3xl font-black tracking-tight leading-none text-slate-900">Bilt 2.0 Lab</h1>
+                                    <p className="text-slate-400 text-[10px] font-bold uppercase tracking-[0.2em] mt-2">Optimization Dashboard</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-6 w-full lg:w-auto justify-between lg:justify-end">
+                                <div className="text-right">
+                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Monthly Spend</div>
+                                    <div className="text-3xl font-black text-slate-900 leading-none mt-1">${totalSpend.toLocaleString()}</div>
+                                </div>
+                                <div className="bg-slate-100 p-1.5 rounded-2xl flex">
+                                    <button onClick={() => setPathway('Tiered')} className={`px-6 py-2.5 rounded-xl text-xs font-bold transition-all ${pathway === 'Tiered' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Tiered</button>
+                                    <button onClick={() => setPathway('BiltCash')} className={`px-6 py-2.5 rounded-xl text-xs font-bold transition-all ${pathway === 'BiltCash' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Bilt Cash</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                            <div className="lg:col-span-4 space-y-6 text-left">
+                                
+                                <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
+                                    <h2 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                        <Icon name="tag" className="w-3.5 h-3.5" /> Point Valuation
+                                    </h2>
+                                    <div className="relative">
+                                        <input type="number" step="0.1" value={userCpp} onChange={(e) => setUserCpp(parseFloat(e.target.value) || 0)} className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-2xl font-black text-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"/>
+                                        <span className="absolute right-5 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400 uppercase">cpp</span>
+                                    </div>
+                                </div>
+
+                                <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 space-y-5">
+                                    <div className="flex justify-between items-center">
+                                        <h2 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                            <Icon name="home" className="w-3.5 h-3.5" /> Routing Config
+                                        </h2>
+                                        <div className="flex gap-2">
+                                            <button 
+                                                onClick={() => setIsEditingMortgages(!isEditingMortgages)} 
+                                                className={`text-[10px] font-bold px-3 py-1.5 rounded-xl border transition-all ${isEditingMortgages ? 'bg-amber-100 border-amber-300 text-amber-800' : 'bg-slate-50 border-slate-200 text-slate-500'}`}
+                                            >
+                                                {isEditingMortgages ? "Save" : "Edit"}
+                                            </button>
+                                            {!isOptimal && pathway === 'Tiered' && (
+                                                <button onClick={() => setActivePayments(recommendation.ids)} className="text-[10px] font-bold bg-indigo-600 text-white px-3 py-1.5 rounded-xl shadow-lg shadow-indigo-100">Optimize</button>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 gap-2.5">
+                                        {mortgages.map(p => (
+                                            <div key={p.id} className="relative">
+                                                <button 
+                                                    disabled={isEditingMortgages}
+                                                    onClick={() => setActivePayments(prev => prev.includes(p.id) ? prev.filter(i => i !== p.id) : [...prev, p.id])}
+                                                    className={`w-full flex justify-between items-center p-4 rounded-2xl border transition-all ${activePayments.includes(p.id) ? 'bg-amber-50 border-amber-200 text-amber-900 shadow-sm' : 'bg-white border-slate-100 text-slate-300'} ${isEditingMortgages ? 'opacity-40 grayscale cursor-default' : 'hover:border-amber-400'}`}
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={`w-5 h-5 rounded-lg flex items-center justify-center transition-colors ${activePayments.includes(p.id) ? 'bg-amber-500 text-white border-amber-500' : 'bg-slate-50 border border-slate-200'}`}>
+                                                            {activePayments.includes(p.id) && <Icon name="check" className="w-3 h-3" />}
+                                                        </div>
+                                                        {!isEditingMortgages && <span className="text-xs font-bold truncate max-w-[140px]">{p.label}</span>}
+                                                    </div>
+                                                    {!isEditingMortgages && <span className="font-black text-sm tracking-tight">${p.amount.toLocaleString()}</span>}
+                                                </button>
+                                                
+                                                {isEditingMortgages && (
+                                                    <div className="absolute inset-0 flex gap-2 p-1.5 bg-white rounded-2xl border-2 border-indigo-500 shadow-lg shadow-indigo-50 z-10">
+                                                        <input 
+                                                            type="text" 
+                                                            value={p.label} 
+                                                            onChange={(e) => handleMortgageUpdate(p.id, 'label', e.target.value)}
+                                                            className="flex-1 text-[11px] font-bold px-3 bg-slate-50 rounded-xl outline-none"
+                                                            placeholder="Name"
+                                                        />
+                                                        <input 
+                                                            type="number" 
+                                                            value={p.amount} 
+                                                            onChange={(e) => handleMortgageUpdate(p.id, 'amount', parseInt(e.target.value) || 0)}
+                                                            className="w-24 text-[11px] font-black px-3 bg-slate-50 rounded-xl outline-none"
+                                                            placeholder="Amount"
+                                                        />
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div className="pt-4 border-t border-slate-50 flex justify-between items-end">
+                                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Active Principal</div>
+                                        <div className="font-black text-amber-600 text-xl leading-none">${mortgageToBilt.toLocaleString()}</div>
+                                    </div>
+                                </div>
+
+                                <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 space-y-6">
+                                    <h2 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Spending Profile</h2>
+                                    {[['Grocery', grocerySpend, setGrocerySpend, 'shopping'], ['Dining', diningSpend, setDiningSpend, 'utensils'], ['Various', variousSpend, setVariousSpend, 'wallet']].map(([label, val, set, icon]) => (
+                                        <div key={label}>
+                                            <div className="flex justify-between text-xs font-bold mb-2">
+                                                <span className="flex items-center gap-1.5 text-slate-600 tracking-tight uppercase text-[10px]"><Icon name={icon} className="w-3 h-3 text-indigo-500" /> {label}</span>
+                                                <span className="text-indigo-600 font-black">${val.toLocaleString()}</span>
+                                            </div>
+                                            <input type="range" min="0" max="6000" step="50" value={val} onChange={(e) => set(parseInt(e.target.value))} className="w-full h-2 bg-slate-100 rounded-lg appearance-none accent-indigo-600"/>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 space-y-4">
+                                    <div className="grid grid-cols-3 gap-2.5">
+                                        {['Blue', 'Obsidian', 'Palladium'].map(t => (
+                                            <button key={t} onClick={() => setCardType(t)} className={`py-3 rounded-2xl text-[10px] font-bold transition-all border ${cardType === t ? 'bg-slate-900 text-white border-slate-900 shadow-xl' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>{t}</button>
+                                        ))}
+                                    </div>
+                                    {cardType === 'Obsidian' && (
+                                        <div className="flex gap-2 p-1 bg-slate-100 rounded-2xl">
+                                            <button onClick={() => setObsidianChoice('Grocery')} className={`flex-1 py-2 text-[10px] font-bold rounded-xl transition-all ${obsidianChoice === 'Grocery' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}>Grocery 3x</button>
+                                            <button onClick={() => setObsidianChoice('Dining')} className={`flex-1 py-2 text-[10px] font-bold rounded-xl transition-all ${obsidianChoice === 'Dining' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}>Dining 3x</button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="lg:col-span-8 space-y-6">
+                                <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100">
+                                    <div className="flex justify-between items-center mb-8">
+                                        <div className="text-left">
+                                            <h3 className="text-xl font-bold text-slate-800 tracking-tight">Marginal Yield Analysis</h3>
+                                            <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.1em] mt-1">Efficiency against your 5% Rival Card benchmark</p>
+                                        </div>
+                                        <div className="bg-emerald-50 text-emerald-700 px-4 py-1.5 rounded-full border border-emerald-100 text-[10px] font-black flex items-center gap-1.5 uppercase tracking-wider">
+                                            <Icon name="percent" className="w-3.5 h-3.5" /> 5% Goal
+                                        </div>
+                                    </div>
+                                    <div className="h-56 w-full">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart data={marginalData} margin={{ top: 10, right: 0, left: -25, bottom: 0 }}>
+                                                <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#f1f5f9" />
+                                                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 11, fontWeight: 800, fill: '#64748b'}} />
+                                                <YAxis axisLine={false} tickLine={false} tick={{fontSize: 11, fontWeight: 800, fill: '#64748b'}} unit="%" domain={[0, 10]} />
+                                                <Tooltip cursor={{fill: '#f8fafc', radius: 12}} contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}} />
+                                                <Bar dataKey="yield" radius={[8, 8, 0, 0]} barSize={40}>
+                                                    {marginalData.map((entry, index) => (
+                                                        <Cell key={`cell-${index}`} fill={entry.yield >= 5 ? '#4f46e5' : '#e2e8f0'} />
+                                                    ))}
+                                                </Bar>
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                    <div className="mt-8 p-6 bg-slate-50 rounded-[2rem] border border-slate-100 text-xs text-slate-600 text-left font-medium leading-relaxed">
+                                        <div className="flex items-center gap-2 mb-3 text-indigo-700 uppercase font-black text-[10px] tracking-widest">
+                                            <Icon name="zap" className="w-4 h-4" /> Strategy Insight
+                                        </div>
+                                        {cardType === 'Obsidian' ? (
+                                            <p>At <strong>{userCpp}cpp</strong>, Tier 1 yield is <strong className="text-indigo-600">{marginalData[0].yield.toFixed(1)}%</strong>. Once you exhaust 3x categories, yield drops significantly. If the bar is grey, your 5% rival card is mathematically superior for that specific spend segment.</p>
+                                        ) : (
+                                            <p>Palladium's <strong>2x base multiplier</strong> at <strong>{userCpp}cpp</strong> ensures yield stays above 5% for all segments. You should put 100% of your spend on Bilt Palladium until your ratio reaches 100%.</p>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100 flex flex-col items-center justify-center text-center">
+                                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-3">Monthly Points</div>
+                                        <div className="text-6xl font-black text-slate-900 tracking-tighter leading-none">{totalPoints.toLocaleString()}</div>
+                                        <div className="px-5 py-2 bg-indigo-50 text-indigo-600 rounded-2xl text-[10px] font-black uppercase tracking-widest mt-6 shadow-sm">{tierInfo.name} ({tierInfo.multiplier}x)</div>
+                                    </div>
+                                    <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100 flex flex-col justify-center text-left">
+                                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-3">Profitability</div>
+                                        <div className="text-6xl font-black text-emerald-600 tracking-tighter leading-none">${netValue.toFixed(2)}</div>
+                                        <p className="text-[10px] text-slate-400 font-bold uppercase mt-6 tracking-widest">Profit after Fees & Credits</p>
+                                    </div>
+                                </div>
+
+                                <div className={`${isOptimal ? 'bg-indigo-600' : 'bg-amber-600'} rounded-[2.5rem] p-8 text-white shadow-xl shadow-indigo-100 relative overflow-hidden transition-all duration-500 text-left`}>
+                                    <Icon name="check" className="absolute right-[-20px] top-[-20px] w-48 h-48 opacity-10 rotate-12" />
+                                    <h3 className="text-xl font-black flex items-center gap-3 mb-3">
+                                        <Icon name={isOptimal ? "check" : "zap"} className="w-6 h-6" />
+                                        {isOptimal ? "Optimal Setup" : "Action Required"}
+                                    </h3>
+                                    <p className="text-sm text-white/90 leading-relaxed font-semibold pr-12">
+                                        {isOptimal 
+                                            ? `Maximum efficiency reached. You are capturing all possible points for your $${totalSpend.toLocaleString()} spend.`
+                                            : `Inefficiency detected! Shift routing to $${recommendation.totalMortgage.toLocaleString()} to gain ${(recommendation.points - totalPoints).toLocaleString()} extra Hyatt points this month.`
+                                        }
+                                    </p>
+                                </div>
+
+                                <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100 overflow-hidden">
+                                    <table className="w-full text-left">
+                                        <thead>
+                                            <tr className="border-b border-slate-100 text-[10px] text-slate-400 uppercase font-black tracking-widest">
+                                                <th className="pb-6 px-4">Revenue Stream</th>
+                                                <th className="pb-6 text-right px-4">Yield</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50">
+                                            <tr>
+                                                <td className="py-6 px-4"><div className="font-bold text-slate-800 text-sm">Everyday Spending</div><div className="text-[10px] text-slate-400 font-bold uppercase mt-1 tracking-widest">{currentCardData.title} Multipliers</div></td>
+                                                <td className="py-6 px-4 text-right font-black text-slate-900 text-lg">+{everydayPoints.toLocaleString()}</td>
+                                            </tr>
+                                            <tr>
+                                                <td className="py-6 px-4"><div className="font-bold text-slate-800 text-sm">Housing Rewards</div><div className="text-[10px] text-slate-400 font-bold uppercase mt-1 tracking-widest">{tierInfo.multiplier}x Multiplier</div></td>
+                                                <td className="py-6 px-4 text-right font-black text-slate-900 text-lg">+{housingPoints.toLocaleString()}</td>
+                                            </tr>
+                                            <tr className="bg-indigo-600 text-white shadow-lg">
+                                                <td className="py-8 px-6 font-black rounded-l-[1.5rem] uppercase tracking-[0.2em] text-sm">Grand Total</td>
+                                                <td className="py-8 px-6 text-right font-black text-3xl rounded-r-[1.5rem]">{totalPoints.toLocaleString()}</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
